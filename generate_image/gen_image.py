@@ -1,5 +1,17 @@
-# 文件名: gen_image.py
+
 # -*- coding: utf-8 -*-
+
+# === 粘贴静音补丁开始 ===
+import os
+import warnings
+from diffusers import logging as diffusers_logging
+from transformers import logging as transformers_logging
+warnings.filterwarnings("ignore")
+diffusers_logging.set_verbosity_error()
+transformers_logging.set_verbosity_error()
+# === 粘贴静音补丁结束 ===
+
+
 import torch
 import os
 import gc
@@ -20,7 +32,6 @@ def generate_static_image(
     # 使用 FP16 加载，避免 "Input type mismatch" 报错
     vae = AutoencoderKL.from_pretrained(vae_path, torch_dtype=torch.float16)
     
-    # 【关键防黑图设置】
     # 开启这个开关，VAE 会在计算时自动临时转为 FP32，防止数值溢出变黑
     vae.config.force_upcast = True 
     
@@ -29,10 +40,11 @@ def generate_static_image(
         base_model_path,
         vae=vae,                      # 使用我们加载好的 VAE
         torch_dtype=torch.float16, 
-        load_safety_checker=False
+        load_safety_checker=False,
+        local_files_only=True
     )
 
-    # 【关键防黑图设置2】暴力移除安全过滤器
+    # 【关键防黑图设置2】暴力移除安全过滤器,修改为false之后，可以生成违禁图
     pipe.safety_checker = None
     pipe.requires_safety_checker = False
 
@@ -43,6 +55,9 @@ def generate_static_image(
             pipe.load_textual_inversion(embedding_path, token="easynegative")
         except Exception as e:
             print(f"!! [警告] Embedding 加载失败: {e}")
+
+
+
 
     pipe.to("cuda")
     pipe.enable_model_cpu_offload() 
@@ -57,8 +72,8 @@ def generate_static_image(
         negative_prompt=neg_prompt,
         width=512,
         height=512,
-        num_inference_steps=500, 
-        guidance_scale=7.5
+        num_inference_steps=700, 
+        guidance_scale=8.0
     ).images[0]
     
     os.makedirs(output_dir, exist_ok=True)
